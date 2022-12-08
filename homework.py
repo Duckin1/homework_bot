@@ -2,9 +2,11 @@ import logging
 import os
 import sys
 import requests
+import exceptions
 
 import telegram
 from datetime import time
+from datetime.time import time
 from telegram import ReplyKeyboardMarkup
 from telegram.error import BadRequest
 from telegram.ext import CommandHandler, Updater
@@ -84,53 +86,60 @@ def parse_status(homework):
     try:
         homework_name = homework.get('homework_name')
     except KeyError as key_error:
-        msg = f'Ошибка доступа по ключу homework_name: {key_error}'
-        logger.error(msg)
+        message = f'Ошибка доступа по ключу homework_name: {key_error}'
+        logger.error(message)
     try:
         homework_status = homework.get('status')
     except KeyError as key_error:
-        msg = f'Ошибка доступа по ключу status: {key_error}'
-        logger.error(msg)
+        message = f'Ошибка доступа по ключу status: {key_error}'
+        logger.error(message)
 
-    verdict = homework_verdicts[homework_status]
+    verdict = HOMEWORK_VERDICTS[homework_status]
     if verdict is None:
-        msg = 'Неизвестный статус домашки'
-        logger.error(msg)
-        raise exceptions.UnknownHWStatusException(msg)
-    # есть статус домашки
-    # HOMEWORK_name есть ли в работе?
+        message = 'Неизвестный статус домашки'
+        logger.error(message)
+        raise exceptions.UnknownHostExceptionExample(message)
 
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
-# def main():
-#     """Основная логика работы бота."""
+def main():
+    """Основная логика работы бота."""
 
-#     ...
+    if not check_tokens():
+        message = 'Ошибка доступности переменных окружения'
+        logger.critical(message)
+        raise exceptions.MissingTokenException(message)
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    timestamp = int(time.time()) - RETRY_PERIOD
+    while True:
+        try:
+            if type(timestamp) is not int:
+                raise SystemError('В функцию передана не дата')
+            response = get_api_answer(timestamp)
+            response = check_response(response)
 
-#     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-#     timestamp = int(time.time())
-
-#     ...
-
-#     while True:
-#         try:
-
-#             ...
-
-#         except Exception as error:
-#             message = f'Сбой в работе программы: {error}'
-#             ...
-#         finally:
-#             time.sleep(5)
+            if len(response) > 0:
+                homework_status = parse_status(response[0])
+                if homework_status is not None:
+                    send_message(bot, homework_status)
+            else:
+                logger.debug('нет новых статусов')
+        except Exception as error:
+            message = f'Сбой в работе программы: {error}'
+            logger.error(message)
+            if message != old_message:
+                bot.send_message(TELEGRAM_CHAT_ID, message)
+                old_message = message
+        finally:
+            time.sleep(5)
 
 
 if __name__ == '__main__':
     logging.basicConfig(
         level=logging.DEBUG,
         filename='main.log',
-        format='%(asctime)s, %(levelname)s, %(name)s, %(message)s',
-        mode='a'
+        format='%(asctime)s, %(levelname)s, %(name)s, %(message)s'
     )
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
