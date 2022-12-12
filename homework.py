@@ -9,7 +9,7 @@ import telegram
 from dotenv import load_dotenv
 from telegram.error import BadRequest
 
-from exceptions import StatusCodeError
+from exceptions import StatusCodeError, ApiNotFoundError
 
 load_dotenv()
 
@@ -44,10 +44,12 @@ def check_tokens():
         'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
         'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID,
     }
+    errors_none = []
     for name, env in enviroments.items():
         if not env:
-            logger.critical('Отсутствует обязательная переменная окружения:'
-                            f'{name} Программа принудительно остановлена.')
+            errors_none.append(name)
+    logger.critical('Отсутствует обязательная переменная окружения:'
+                    f'{errors_none} Программа принудительно остановлена.')
     return False
 
 
@@ -70,8 +72,9 @@ def get_api_answer(timestamp):
     payload = {'from_date': timestamp}
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=payload)
-    except requests.RequestException:
-        logger.error(f'Нет доступа к API яндекса: {ENDPOINT}', exc_info=True)
+    except requests.RequestException as ex:
+        raise ApiNotFoundError(
+            f'Нет доступа к API яндекса: {ENDPOINT}') from ex
     else:
         if not response.status_code == HTTPStatus.OK:
             raise StatusCodeError('Статус кода не 200')
@@ -99,7 +102,7 @@ def check_response(response):
     status = response.get('homeworks')[0].get('status')
     if status not in HOMEWORK_VERDICTS:
         raise KeyError(
-            f"Статус {status} от API отсутствует либо неверный"
+            f'Статус {status} от API отсутствует либо неверный'
         )
     return response['homeworks']
 
