@@ -99,7 +99,7 @@ def check_response(response):
     if not response.get('homeworks'):
         logger.info(f'в {response}  пустой JSON')
         return False
-    status = response.get('homeworks')[0].get('status')
+    status = response.get('homeworks')[0]['status']
     if status not in HOMEWORK_VERDICTS:
         raise KeyError(
             f'Статус {status} от API отсутствует либо неверный'
